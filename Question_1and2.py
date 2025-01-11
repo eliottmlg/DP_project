@@ -118,7 +118,7 @@ ces = CES_OG()
 
 ### Setup of the grid
 grid_max = 5         # Largest grid point
-grid_size = 400      # Number of grid points
+grid_size = 4000     # Number of grid points
 grid = np.linspace(1e-5, grid_max, grid_size)
 
 # Initial conditions and shocks
@@ -202,7 +202,6 @@ plt.show()
 # Finding steady state
 #==============================================================================
 
-    
 # Creation of the model
 ces = CES_OG()
 # == Unpack parameters / functions for convenience == #
@@ -211,6 +210,6 @@ ces = CES_OG()
 ss = np.absolute(grid - policy_function)
 ss = pd.DataFrame(ss)
 index_min = ss.idxmin() 
-ss_h = policy_function[index_min] # h
-ss_l = 1-delta*ss_h
-ss_c = f(ss_h,ss_l)
+ss_h = policy_function[index_min] # SS of h
+ss_l = 1-delta*ss_h # l
+ss_c = ces.f(ss_h,ss_l) # c

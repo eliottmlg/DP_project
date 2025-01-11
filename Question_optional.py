@@ -38,22 +38,23 @@ class Params(d2l.HyperParameters):
                  alpha = 0.4,
                  beta = 0.9,
                  delta = 0.05,
-                 h_0 = 1.0,
+                 h_0 = 4,
                  sigma = 0.9,
                 ):
         self.save_hyperparameters()
         
         
-        
 
-def f(k, l):
+def f(h, l):
     alpha = Params().alpha
-    return k**alpha * l
+    return h**alpha * l
 
 def u_prime(c):
     sigma = Params().sigma
     out = c.pow(-sigma)
     return out
+
+
 
 class SS: #steady state
     def __init__(self):
@@ -69,8 +70,9 @@ class SS: #steady state
 
 class Grid_data(d2l.HyperParameters):
     def __init__(self,
-                 max_T = 31,
-                 batch_size = 8):
+                 max_T = 32,
+                 batch_size = 8
+                 ):
         self.save_hyperparameters()
         self.time_range = torch.arange(0.0, self.max_T , 1.0)
         self.grid = self.time_range.unsqueeze(dim = 1)
@@ -119,10 +121,15 @@ class NN(nn.Module, d2l.HyperParameters):
 
         self.q = nn.Sequential(*module)
 
-
     def forward(self, x):
-        out = self.q(x) # first element is consumption, the second element is capital
-        return  out
+            out = self.q(x) # first element is consumption, the second element is capital
+            l_t = torch.clamp(out[:, [0]], 0, 1)  # Clamp l_t to [0, 1]
+            h_t = F.softplus(out[:, [1]])
+            return torch.cat((l_t, h_t), dim=1)
+
+    #def forward(self, x):
+     #   out = self.q(x) # first element is consumption, the second element is capital
+      #  return  out
     
     
     
@@ -160,23 +167,36 @@ for epoch in range(num_epochs):
     for i, time in enumerate(train):
         time_zero = torch.zeros([1,1])
         time_next = time+1
-        time_2next = time+2
+        time_2next = time_next+1
         l_t = q_hat(time)[:,[0]]
         h_t = q_hat(time)[:,[1]]
         l_tp1 = q_hat(time_next)[:,[0]]
         h_tp1 = q_hat(time_next)[:,[1]]
-        h_tp2 = q_hat(time_2next)[0,1]
+        h_tp2 = q_hat(time_2next)[:,[1]]
         h_t0 = q_hat(time_zero)[0,1]
 
+        # Ensure slackness condition
+        slack_multiplier = torch.ones_like(l_t)
+        slack_multiplier[l_t <= 0] = 0  # If l_t = 0, slackness condition holds
+        slack_multiplier[l_t >= 1] = 0  # If l_t = 1, slackness condition holds
+        
         res_1 = h_tp1 - (1-delta)*h_t - (1-l_t) # Law of motion of human capital
-        res_2 = h_t**alpha * u_prime(f(h_t,l_t)) - beta * u_prime(f(h_tp1,l_tp1)) * (
-            (1+alpha)*(1-delta) * h_tp1**alpha + alpha*h_tp1**(alpha-1) * (1-h_tp2)
-            ) #Euler
+        res_2 = slack_multiplier * (
+            h_t**(alpha)*u_prime(f(h_t,l_t))/u_prime(f(h_tp1,l_tp1)) - beta*(
+            (1+alpha)*(1-delta)*h_tp1**(alpha) + alpha*h_tp1**(alpha-1)*(1-h_tp2)
+            )) # euler equation
         res_3 = h_t0-h_0 #Initial Condition
-
+            
+        #if torch.any(l_t > 1) or torch.any(l_t < 0):
+         #   res_2 = res_2+1
+            
+        #if torch.any(h_t < 0) or torch.any(h_tp1 < 0) or torch.any(h_tp2 < 0):
+         #   res_1 = res_1+1
+            
         loss_1 = res_1.pow(2).mean()
         loss_2 = res_2.pow(2).mean()
         loss_3 = res_3.pow(2).mean()
+            
         loss = 0.1*loss_1+0.8*loss_2+0.1*loss_3
 
         optimizer.zero_grad()
@@ -195,23 +215,20 @@ for epoch in range(num_epochs):
           
           
           
-          
-          
-          
-
+         
 time_test = Grid_data().grid
 l_hat_path = q_hat(time_test)[:,[0]].detach()
 h_hat_path = q_hat(time_test)[:,[1]].detach()
 c_hat_path = f(h_hat_path, l_hat_path)
 
 
-plt.figure(figsize=(9, 5))  # Set figure size to 9 by 5
-plt.plot(time_test, h_hat_path, color='k', label=r"Approximate human capital path")
-plt.axhline(y=SS().h_ss, linestyle='--', color='k', label="h Steady State")
+plt.figure(figsize=(9, 5)) 
+plt.plot(time_test, h_hat_path, label=r"Approximate human capital path")
+plt.axhline(y=SS().h_ss, linestyle='--', label="h Steady State")
 plt.ylabel(r"h(t)")
 plt.xlabel(r"Time(t)")
-plt.ylim([Params().h_0 - 0.1, SS().h_ss + 0.1])
-plt.legend(loc='best')
+#plt.ylim([Params().h_0 - 0.1, SS().h_ss + 0.1])
+plt.legend(loc='lower right')
 plt.show()
 
 
@@ -219,17 +236,19 @@ plt.figure(figsize=(9, 5))  # Set figure size to 9 by 5
 plt.plot(time_test,l_hat_path,label= r"Approximate labour supply path")
 plt.axhline(y=SS().l_ss, linestyle='--',label="l Steady State")
 plt.xlabel(r"Time(t)")
-plt.ylim([l_hat_path[0]-0.1,SS().l_ss+0.1 ])
+plt.ylabel(r"l(t)")
+#plt.ylim([l_hat_path[0]-0.1,SS().l_ss+0.1 ])
 plt.tight_layout()
-plt.legend(loc='best')
+plt.legend(loc='lower right')
 plt.show()
 
 plt.figure(figsize=(9, 5))  # Set figure size to 9 by 5
 plt.plot(time_test,c_hat_path,label= r"Approximate consumption path")
 plt.axhline(y=SS().c_ss, linestyle='--',label="c Steady State")
 plt.xlabel(r"Time(t)")
-plt.ylim([c_hat_path[0]-0.1,SS().c_ss+0.1 ])
+plt.ylabel(r"c(t)")
+#plt.ylim([c_hat_path[0]-0.1,SS().c_ss+0.1 ])
 plt.tight_layout()
-plt.legend(loc='best')
+plt.legend(loc='lower right')
 plt.show()
 
