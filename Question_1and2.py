@@ -5,6 +5,11 @@ Created on Wed Jan  8 17:55:10 2025
 @author: eliot
 """
 
+#==============================================================================
+# Dynamic Programming - Project
+# QUESTIONS 1, 2
+#==============================================================================
+
 import os
 import numpy as np
 from scipy.optimize import fminbound
@@ -36,7 +41,6 @@ def bellman_operator(w, grid, β, delta, u, f, Tw=None, compute_policy=0):
             σ[i] = (1-delta) * h + 1 - l_star #h_(t+1) as a function of h_t
             c_opt[i] = f(h,l_star)
             l_opt[i] = l_star
-        # Tw[i] = #Your code goes here
         Tw[i] = - objective(l_star)
         
 
@@ -66,7 +70,6 @@ def solve_optgrowth(initial_w, grid, β, delta, u, f, tol=1e-4, max_iter=500):
                                  u,
                                  f,
                                  Tw)
-        # error = #Your code goes here 
         error = np.max(np.abs(w_new - w))
         w[:] = w_new
         i += 1

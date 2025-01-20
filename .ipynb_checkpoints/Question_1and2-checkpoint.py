@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 """
 Created on Wed Jan  8 17:55:10 2025
@@ -9,9 +8,11 @@ Created on Wed Jan  8 17:55:10 2025
 import os
 import numpy as np
 from scipy.optimize import fminbound
+import matplotlib.pyplot as plt
+import pandas as pd
 
 
-def bellman_operator(w, grid, α, β, sigma, delta, u, f, Tw=None, compute_policy=0):
+def bellman_operator(w, grid, β, delta, u, f, Tw=None, compute_policy=0):
     # === Apply linear interpolation to w === #
     w_func = lambda x: np.interp(x, grid, w)
 
@@ -27,16 +28,14 @@ def bellman_operator(w, grid, α, β, sigma, delta, u, f, Tw=None, compute_polic
     # == set Tw[i] = max_c { u(c) + β E w(f(y  - c) z)} == #
     for i, h in enumerate(grid):
         def objective(l, h=h):
-            return - u(f(h,l)) - β * w_func((1-delta) * h + 1 - l)
-        l_star = fminbound(objective, 1e-10, h)
-        if l_star > 1:
-            l_star = 1
+            hprime = (1 - delta)*h + 1 - l
+            return - u(f(h, l)) - (β * w_func(hprime))
+        l_star = fminbound(objective, 0, 1)
             
         if compute_policy:
-            σ[i] = g(l_star, h, α, β, sigma, delta) #h_(t+1) as a function of h_t
+            σ[i] = (1-delta) * h + 1 - l_star #h_(t+1) as a function of h_t
             c_opt[i] = f(h,l_star)
             l_opt[i] = l_star
-        # Tw[i] = #Your code goes here
         Tw[i] = - objective(l_star)
         
 
@@ -47,7 +46,7 @@ def bellman_operator(w, grid, α, β, sigma, delta, u, f, Tw=None, compute_polic
 
 
 
-def solve_optgrowth(initial_w, grid, α, β, sigma, delta, u, f, tol=1e-4, max_iter=500):
+def solve_optgrowth(initial_w, grid, β, delta, u, f, tol=1e-4, max_iter=500):
 
     w = initial_w  # Set initial condition
     error = tol + 1
@@ -61,11 +60,11 @@ def solve_optgrowth(initial_w, grid, α, β, sigma, delta, u, f, tol=1e-4, max_i
     while error > tol and i < max_iter:
         w_new = bellman_operator(w,
                                  grid,
-                                 α, β, sigma, delta,
+                                 β,
+                                 delta,
                                  u,
                                  f,
                                  Tw)
-        # error = #Your code goes here 
         error = np.max(np.abs(w_new - w))
         w[:] = w_new
         i += 1
@@ -75,7 +74,8 @@ def solve_optgrowth(initial_w, grid, α, β, sigma, delta, u, f, tol=1e-4, max_i
     # Computes policy
     w, policy, c_opt, l_opt = bellman_operator(w,
                              grid,
-                             α, β, sigma, delta,
+                             β,
+                             delta,
                              u,
                              f,
                              Tw,
@@ -116,11 +116,12 @@ ces = CES_OG()
 
 ### Setup of the grid
 grid_max = 5         # Largest grid point
-grid_size = 400      # Number of grid points
+grid_size = 4000     # Number of grid points
 grid = np.linspace(1e-5, grid_max, grid_size)
 
 # Initial conditions and shocks
 initial_w = 5 * np.log(grid)
+
 
 # Computation of the value function
 solve = solve_optgrowth(initial_w, grid, β, delta, u=ces.u,
@@ -134,7 +135,6 @@ l_opt = solve[3]
 #==============================================================================
 # Plotting value function
 #==============================================================================
-import matplotlib.pyplot as plt
 
 fig, ax = plt.subplots(figsize=(9, 5))
 ax.set_ylim(min(value_approx), max(value_approx))
@@ -183,7 +183,7 @@ plt.show()
 #==============================================================================
 
 fig, ax = plt.subplots(figsize=(9, 5))
-ax.set_ylim(min(l_opt), max(l_opt))
+ax.set_ylim(0,1.1)
 ax.plot(grid, l_opt, lw=2, alpha=0.6, label='approximate labour supply')
 ax.plot(grid, (1-l_opt), lw=2, alpha=0.6, label='approximate learning')
 
@@ -194,3 +194,20 @@ ax.set_xlabel('h_t')
 ax.set_ylabel('l_t')
 ax.legend(loc='lower right')
 plt.show()
+
+
+#==============================================================================
+# Finding steady state
+#==============================================================================
+
+# Creation of the model
+ces = CES_OG()
+# == Unpack parameters / functions for convenience == #
+α, β, sigma, delta = ces.α, ces.β, ces.sigma, ces.delta
+
+ss = np.absolute(grid - policy_function)
+ss = pd.DataFrame(ss)
+index_min = ss.idxmin() 
+ss_h = policy_function[index_min] # SS of h
+ss_l = 1-delta*ss_h # l
+ss_c = ces.f(ss_h,ss_l) # c
