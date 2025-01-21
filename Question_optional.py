@@ -227,7 +227,7 @@ beta = Params().beta
 alpha = Params().alpha
 h_0 = Params().h_0
 
-num_epochs = 1001
+num_epochs = 1501
 
 
 # Torchsummary provides a more readable summary of the neural network
@@ -248,15 +248,17 @@ for epoch in range(num_epochs):
 
        
         # Slackness conditions 
-        slack_penalty = 0.0 # lagrange multiplier is non-zero when labour outside bounds
+        slack_penalty = torch.zeros_like(l_t) # lagrange multiplier is non-zero when labour outside bounds
         
         # add the difference between l_t and bounds to multiplier 
-        slack_penalty += torch.sum(torch.clamp(l_t - 1, min=0))  # when l_t > 1
-        slack_penalty += torch.sum(torch.clamp(-l_t, min=0))     # when l_t < 0
+        slack_penalty += torch.clamp(l_t - 1, min=0)  # when l_t > 1
+        slack_penalty += torch.clamp(-l_t, min=0)     # when l_t < 0
         
         # Add penalties for l_tp1
-        slack_penalty += torch.sum(torch.clamp(l_tp1 - 1, min=0))  # when l_tp1 > 1
-        slack_penalty += torch.sum(torch.clamp(-l_tp1, min=0))     # when l_tp1 < 0
+        slack_penalty += torch.clamp(l_tp1 - 1, min=0)  # when l_tp1 > 1
+        slack_penalty += torch.clamp(-l_tp1, min=0)     # when l_tp1 < 0
+        
+        slack_penalty = 2*slack_penalty
         
         res_1 = h_tp1 - (1-delta)*h_t - (1-l_t) # Law of motion of human capital
         res_2 = h_t**(alpha)*u_prime(f(h_t,l_t)) + slack_penalty - beta*u_prime(f(h_tp1,l_tp1))*(
@@ -303,7 +305,6 @@ c_hat_path3 = f(h_hat_path3, l_hat_path3)
 
 
 plt.figure(figsize=(9, 5)) 
-#plt.plot(time_test, h_hat_path, label=r"human capital path -- slackness condition")
 plt.plot(time_test, h_hat_path2, label=r"human capital path -- unconstrained")
 plt.plot(time_test, h_hat_path3, label=r"human capital path -- multiplier in Euler")
 plt.axhline(y=SS().h_ss, linestyle='--', label="h Steady State")
@@ -315,7 +316,6 @@ plt.show()
 
 
 plt.figure(figsize=(9, 5))  # Set figure size to 9 by 5
-#plt.plot(time_test,l_hat_path,label= r"labour supply path -- slackness condition")
 plt.plot(time_test,l_hat_path2,label= r"labour supply path -- unconstrained")
 plt.plot(time_test,l_hat_path3,label= r"labour supply path -- multiplier in Euler")
 plt.axhline(y=SS().l_ss, linestyle='--',label="l Steady State")
@@ -327,7 +327,6 @@ plt.legend(loc='upper right')
 plt.show()
 
 plt.figure(figsize=(9, 5))  # Set figure size to 9 by 5
-#plt.plot(time_test,c_hat_path,label= r"consumption path -- slackness condition")
 plt.plot(time_test,c_hat_path2,label= r"consumption path -- unconstrained")
 plt.plot(time_test,c_hat_path3,label= r"consumption path -- multiplier in Euler")
 plt.axhline(y=SS().c_ss, linestyle='--',label="c Steady State")
