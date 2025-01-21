@@ -68,10 +68,10 @@ class CES_OG:
 
     def u(self, c):
         " Utility "
-        return (c**(1-self.sigma)-1)/(1-self.sigma)
+        return (c**(1-self.sigma))/(1-self.sigma)
 
     def f(self, h,l):
-        " Deterministic part of f function.  "
+        " consumption function.  "
         return h**self.α * l
     
     
